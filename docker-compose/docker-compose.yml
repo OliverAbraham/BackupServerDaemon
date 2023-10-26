@@ -1,0 +1,9 @@
+---
+version: "2.1"
+services:
+  backupserverdaemon:
+    image: ghcr.io/oliverabraham/backupserverdaemon/backupserverdaemon:latest
+    container_name: backupserverdaemon
+    ports:
+      - 32080:8080
+    restart: unless-stopped
