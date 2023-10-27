@@ -2,7 +2,7 @@
 ServerURL               : "<YOUR SERVER URL>"
 Username                : "<SERVER BASIC AUTHENTICAION USERNAME>"
 Password                : "<SERVER BASIC AUTHENTICAION PASSWORD>"
-MaxLogMessagesInUI      : 100
+ServerTimeout           : 60
 UpdateIntervalInMinutes : 1
 BaseFolder              : "/mnt"
 Folder                  : "dev-disk-by-uuid-436974ef-70d4-45cf-885c-0aedcd80d737/BackupServer1/Server1-Pull-K/Archiv"

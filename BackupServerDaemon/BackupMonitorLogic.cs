@@ -1,8 +1,6 @@
-﻿//using Abraham.HomenetBase.Connectors;
-//using Abraham.HomenetBase.Models;
+﻿using Abraham.HomenetBase.Connectors;
+using Abraham.HomenetBase.Models;
 using Abraham.ProgramSettingsManager;
-using System;
-using System.Linq;
 
 namespace BackupServerDaemon
 {
@@ -33,7 +31,7 @@ namespace BackupServerDaemon
 
         #region ------------- Properties ---------------------------------------------------------
         public int UpdateIntervalInMinutes { get { return (_config is not null) ? _config.UpdateIntervalInMinutes : 1;} }
-        public int MaxLogMessagesInUI { get { return (_config is not null) ? _config.MaxLogMessagesInUI : 1000; } }
+        public int MaxLogMessagesInUI { get { return (_config is not null) ? ((_config.MaxLogMessagesInUI < 1) ? 1 : _config.MaxLogMessagesInUI) : 1000; } }
 
         public delegate void LoggerDelegate(string message);
         public LoggerDelegate Logger { get; set; }
@@ -48,6 +46,7 @@ namespace BackupServerDaemon
             public string ServerURL { get; set; }
             public string Username { get; set; }
             public string Password { get; set; }
+            public int ServerTimeout { get; set; }
             public int MaxLogMessagesInUI { get; set; }
             public int UpdateIntervalInMinutes { get; set; }
             public string BaseFolder { get; set; }  // this should be a container volume
@@ -60,6 +59,7 @@ namespace BackupServerDaemon
                     $"ServerURL               : {ServerURL}\n" +
                     $"Username                : {Username}\n" +
                     $"Password                : ***************\n" +
+                    $"ServerTimeout           : {ServerTimeout}\n" +
                     $"MaxLogMessagesInUI      : {MaxLogMessagesInUI}\n" +
                     $"UpdateIntervalInMinutes : {UpdateIntervalInMinutes}\n" +
                     $"BaseFolder              : {BaseFolder} (this should be a docker volume mounted into the container, e.g. /mnt)\n" +
@@ -81,7 +81,7 @@ namespace BackupServerDaemon
         private string _configurationFilename = "";
         #endregion
         #region Home automation server connection
-        //private static DataObjectsConnector _homenetClient;
+        private static DataObjectsConnector _homenetClient;
         #endregion
         #endregion
 
@@ -196,31 +196,37 @@ namespace BackupServerDaemon
                 if (!ConnectToHomenetServer())
                     Logger("Error connecting to homenet server.");
                 else
-                    SendStatusToServer(results);
+                    UpdateDataObject(results);
                 return;
             }
         }
 
-        private static bool ConnectToHomenetServer()
+        private bool ConnectToHomenetServer()
         {
-            //Log("Connecting to homenet server...");
-            //try
-            //{
-            //    _homenetClient = new DataObjectsConnector(_logic.ServerURL, _logic.Username, _logic.Password, 30);
-            //    Log("Connect successful");
+            Logger("Connecting to homenet server...");
+            try
+            {
+                _homenetClient = new DataObjectsConnector(_config.ServerURL, _config.Username, _config.Password, _config.ServerTimeout);
+                Logger("Connect successful");
                 return true;
-            //}
-            //catch (Exception ex)
-            //{
-            //    Log("Error connecting to homenet server:\n" + ex.ToString());
-            //    return false;
-            //}
+            }
+            catch (Exception ex)
+            {
+                Logger("Error connecting to homenet server:\n" + ex.ToString());
+                return false;
+            }
         }
 
-        private static void SendStatusToServer(Results results)
+        private void UpdateDataObject(Results results)
         {
-            //bool success = _homenetClient.UpdateValueOnly(new DataObject() { Name = dataObjectName, Value = dataObjectvalue });
-            //Log($"{(success ? "ok" : "send error!")}");
+            if (_homenetClient is null)
+                return;
+
+            bool success = _homenetClient.UpdateValueOnly(new DataObject() { Name = _config.DataObject, Value = results.Result});
+            if (success)
+                Logger($"server updated");
+            else
+                Logger($"server update error! {_homenetClient.LastError}");
         }
         #endregion
         #region Reading configuration file
@@ -241,6 +247,10 @@ namespace BackupServerDaemon
                     Logger($"No valid configuration found!\nExpecting file '{_configurationFilename}'");
                     return false;
                 }
+
+                if (_config.MaxLogMessagesInUI < 1)
+                    Logger($"Warning: Parameter '{nameof(_config.MaxLogMessagesInUI)}' is NOT set!");
+
                 Logger($"Configuration read from filename '{_configurationFilename}'");
                 return true;
             }
