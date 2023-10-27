@@ -1,9 +1,11 @@
----
 version: "2.1"
 services:
   backupserverdaemon:
     image: ghcr.io/oliverabraham/backupserverdaemon/backupserverdaemon:latest
     container_name: backupserverdaemon
     ports:
-      - 32080:8080
+      - 32080:80
+    volumes:
+      - /home/pi/backupserverdaemon/appsettings.hjson:/opt/appsettings.hjson
+      - /srv:/mnt
     restart: unless-stopped

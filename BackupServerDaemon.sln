@@ -5,7 +5,13 @@ VisualStudioVersion = 17.2.32422.2
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "1 UI", "1 UI", "{93125F9C-7695-4E40-A026-57BD2863A4E0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackupServerDaemon", "BackupServerDaemon\BackupServerDaemon.csproj", "{C45593EA-C571-4D87-B3C7-C3A4A8F34FE0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BackupServerDaemon", "BackupServerDaemon\BackupServerDaemon.csproj", "{C45593EA-C571-4D87-B3C7-C3A4A8F34FE0}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "2 docker-compose", "2 docker-compose", "{CFE91ADB-65E6-4A0B-A71B-CD29CCD0DA57}"
+	ProjectSection(SolutionItems) = preProject
+		docker-compose\docker-compose.yml = docker-compose\docker-compose.yml
+		docker-compose\update_backupserverdaemon.sh = docker-compose\update_backupserverdaemon.sh
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
