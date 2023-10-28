@@ -18,6 +18,7 @@ namespace BackupServerDaemon
             Greeting();
             if (!InitBackupMonitor())
                 return;
+            Divider();
             InitScheduler();
             InitAndStartWebServer(args);
         }
@@ -36,6 +37,14 @@ namespace BackupServerDaemon
             Log($"---------------------------------------------------------------------------------------------------");
         }
 
+        private static void Divider()
+        {
+            Log($"---------------------------------------------------------------------------------------------------");
+            Log($"");
+            Log($"");
+            Log($"");
+        }
+
         private static bool InitBackupMonitor()
         {
             _logic = new BackupMonitorLogic();
@@ -50,7 +59,6 @@ namespace BackupServerDaemon
             Log("Starting periodic monitoring. Press Ctrl-C to stop.");
 
             _scheduler = new Scheduler()
-                .UseFirstInterval(TimeSpan.FromSeconds(10))
                 .UseIntervalMinutes(_logic.UpdateIntervalInMinutes)
                 .UseAction(() => _logic.Check())
                 .Start();

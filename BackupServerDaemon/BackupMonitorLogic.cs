@@ -1,6 +1,7 @@
 ﻿using Abraham.HomenetBase.Connectors;
 using Abraham.HomenetBase.Models;
 using Abraham.ProgramSettingsManager;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace BackupServerDaemon
 {
@@ -11,18 +12,30 @@ namespace BackupServerDaemon
         {
             public bool Success { get; }
             public string ErrorMessages { get; }
-            public string Result { get; }
+            public string Rating { get; }
+            public int Age { get; }
+            public string FolderName { get; internal set; }
 
-            public Results(bool success, string result)
+            public Results(bool success, string rating, int age, string folderName)
             {
                 Success = success;
-                Result = result;
+                Rating = rating;
+                Age = age;
+                FolderName = folderName;
             }
 
             public Results(bool success, Exception ex)
             {
                 Success = success;
                 ErrorMessages = ex.ToString();
+            }
+
+            public Results(bool success, string rating)
+            {
+                Success = success;
+                Rating = rating;
+                Age = 9999999;
+                FolderName = "";
             }
         }
         #endregion
@@ -51,8 +64,7 @@ namespace BackupServerDaemon
             public int UpdateIntervalInMinutes { get; set; }
             public int TimezoneOffset { get; set; }
             public string BaseFolder { get; set; }  // this should be a container volume
-            public string Folder { get; set; }
-            public string DataObject { get; set; }
+            public List<Group> Groups { get; set; }
 
             public override string ToString()
             {
@@ -64,9 +76,51 @@ namespace BackupServerDaemon
                     $"MaxLogMessagesInUI      : {MaxLogMessagesInUI}\n" +
                     $"UpdateIntervalInMinutes : {UpdateIntervalInMinutes}\n" +
                     $"TimezoneOffset          : {TimezoneOffset} hours\n" +
-                    $"BaseFolder              : {BaseFolder} (this should be a docker volume mounted into the container, e.g. /mnt)\n" +
-                    $"Folder                  : {Folder}\n" +
-                    $"DataObject name         : {DataObject}\n";
+                    $"BaseFolder              : {BaseFolder}\n" +
+                    $"Groups:\n" + string.Join("\n", Groups);
+            }
+        }
+
+        private class Group
+        {
+            public string DataObjectName { get; set; }
+            public string Strategy { get; set; }
+            public List<Folder> Folders { get; set; }
+            public List<Rating> Ratings { get; set; }
+
+            public override string ToString()
+            {
+                return $"    DataObject         : {DataObjectName}\n" +
+                       $"    Strategy           : {Strategy}\n" +
+                       $"    Folders:\n" + string.Join("\n", Folders) +
+                       $"    Ratings:\n" + string.Join("\n", Ratings) +
+                       $"    \n";
+            }
+        }
+
+        private class Folder
+        {
+            public string Path { get; set; }
+            public string IndicatorFile { get; set; }
+            public string Strategy { get; set; }
+
+            public override string ToString()
+            {
+                return $"        Path           : {Path}\n" +
+                       $"        Strategy       : {Strategy}\n" +
+                       $"        IndicatorFile  : {IndicatorFile}\n" + 
+                       $"        \n";
+            }
+        }
+
+        private class Rating
+        {
+            public int AgeDays { get; set; }
+            public string Result { get; set; }
+
+            public override string ToString()
+            {
+                return $"        age <= {AgeDays,9} days --> \"{Result}\"\n";
             }
         }
 
@@ -84,6 +138,19 @@ namespace BackupServerDaemon
         #endregion
         #region Home automation server connection
         private static DataObjectsConnector _homenetClient;
+        #endregion
+        #region private Types
+        private class FileDetail
+        {
+            public string Name { get; }
+            public DateTime Time { get; }
+
+            public FileDetail(string name, DateTime time)
+            {
+                Name = name;
+                Time = time;
+            }
+        }
         #endregion
         #endregion
 
@@ -130,17 +197,7 @@ namespace BackupServerDaemon
         /// </summary>
         public void Check()
         {
-            try
-            {
-                var results = CheckAllFolders();
-
-                if (results.Success)
-                    SendOutResults(results);
-            }
-            catch (Exception ex)
-            {
-                Logger($"Error reading the folder '{_config.Folder}': {ex.ToString()}");
-            }
+            CheckAllGroups();
         }
         #endregion
 
@@ -148,30 +205,131 @@ namespace BackupServerDaemon
 
         #region ------------- Implementation ------------------------------------------------------
         #region Monitoring
-        private Results CheckAllFolders()
+        private void CheckAllGroups()
         {
-            var folder = Path.Combine(_config.BaseFolder, _config.Folder);
             try
             {
-                Logger($"Reading folder '{folder}'");
-
-                var files = Directory.GetFiles(folder);
-                var lastWriteTimes = files.Select(file => File.GetLastWriteTime(file)).ToList();
-                var youngestWriteTime = lastWriteTimes.Max();
-                var age = DateTime.Now - youngestWriteTime;
-                var result = InterpretAge(age);
-
-                // adjust displayed time to a hard coded timezone of necessary
-                youngestWriteTime = youngestWriteTime.AddHours(_config.TimezoneOffset);
-                
-                Logger($"The youngest file is of {youngestWriteTime.ToString("yyyy-MM-dd HH:mm:ss")}. Age: {FormatAge(age)}. Result: {result} ");
-                return new Results(true, result);
+                CheckAllGroups_internal();
             }
             catch (Exception ex)
             {
-                Logger($"Error reading folder '{folder}': {ex}");
+                Logger($"Error reading groups: {ex}");
+            }
+        }
+
+        private void CheckAllGroups_internal()
+        {
+            foreach (var group in _config.Groups)
+            {
+                Logger($"Group: {group.DataObjectName}");
+                var result = CheckGroup(group);
+                if (result.Success)
+                    SendOutResults(result, group.DataObjectName);
+            }
+        }
+
+        private Results CheckGroup(Group group)
+        {
+            try
+            {
+                var groupResults = new List<Results>();
+
+                foreach(var folder in group.Folders)
+                    groupResults.Add(CheckFolder(folder, group.Ratings));
+
+                var rating = RateGroupResults(group, groupResults);
+                return new Results(true, rating);
+            }
+            catch (Exception ex)
+            {
+                Logger($"Error reading group: {ex}");
                 return new Results(false, ex);
             }
+        }
+
+        private string RateGroupResults(Group group, List<Results> groupResults)
+        {
+            if (group.Strategy != "TakeNewestFolder" && 
+                group.Strategy != "TakeOldestFolder")
+            {
+                Logger($"    Unknown strategy '{group.Strategy}'. Allowed values are 'TakeNewestFolder' and 'TakeOldestFolder'");
+                return "rating error";
+            }
+
+            Logger($"Merging group results with strategy {group.Strategy}:");
+            foreach(var result in groupResults)
+            {
+                Logger($"    {result.FolderName,-50} --> {result.Rating,-5} ({result.Age} days)");
+                if (result.Rating == "rating error")
+                    return "rating error";
+            }
+
+            var orderedResults = groupResults.OrderBy(x => x.Age);
+            
+            var totalRating = (group.Strategy == "TakeNewestFolder")
+                ? orderedResults.Last().Rating
+                : orderedResults.First().Rating;
+
+            Logger($"Total rating: {totalRating}");
+            return totalRating;
+        }
+
+        private Results CheckFolder(Folder folder, List<Rating> ratings)
+        {
+            try
+            {
+                return CheckFolder_internal(folder, ratings);
+            }
+            catch (Exception ex)
+            {
+                Logger($"Error reading folder: {ex}");
+                return new Results(false, ex);
+            }
+        }
+
+        private Results CheckFolder_internal(Folder folder, List<Rating> ratings)
+        {
+            var folderFullPath = Path.Combine(_config.BaseFolder, folder.Path);
+            Logger($"    Reading folder  '{folderFullPath}' with mask '{folder.IndicatorFile}'");
+
+            var fileNames = Directory.GetFiles(folderFullPath, folder.IndicatorFile, SearchOption.TopDirectoryOnly);
+            if (fileNames.Count() == 0)
+            {
+                Logger($"    No files found.");
+                return new Results(true, "no data");
+            }
+
+            var fileDetails = fileNames
+                .Select(name => new FileDetail(name, File.GetLastWriteTime(name)))
+                .ToList()
+                .OrderBy(x => x.Time)
+                .ToList();
+
+            FileDetail pickedFile;
+            TimeSpan age = TimeSpan.FromDays(9999999);
+            if (folder.Strategy == "TakeNewestFileInRoot")
+            {
+                pickedFile = fileDetails.Last();
+                age = DateTime.Now - pickedFile.Time;
+            }
+            else if (folder.Strategy == "TakeOldestFileInRoot")
+            {
+                pickedFile = fileDetails.First();
+                age = DateTime.Now - pickedFile.Time;
+            }
+            else
+            {
+                Logger($"    Unknown strategy '{folder.Strategy}'. Allowed values are 'TakeNewestFileInRoot' and 'TakeOldestFileInRoot'");
+                return new Results(true, "no data");
+            }
+
+            string rating = RateFileAge(age, ratings);
+
+            // adjust displayed time to a hard coded timezone of necessary (if it isn't possible to set the docker container timezone)
+            var displayedFileTime = pickedFile.Time.AddHours(_config.TimezoneOffset);
+
+            Logger($"    Picked file:    '{pickedFile.Name,-80}' last write time: {displayedFileTime.ToString("yyyy-MM-dd HH:mm:ss")}. Age: {FormatAge(age),4}. Rating: {rating} ");
+            return new Results(true, rating, age.Days, folder.Path);
         }
 
         private string FormatAge(TimeSpan age)
@@ -188,34 +346,25 @@ namespace BackupServerDaemon
             return result.Trim();
         }
 
-        private string InterpretAge(TimeSpan age)
+        private string RateFileAge(TimeSpan age, List<Rating> ratings)
         {
-            return age.TotalDays switch
+            foreach(var rating in ratings)
             {
-                <  1 => "OK",
-                <= 1 => "1d",
-                <= 2 => "2d",
-                <= 3 => "3d",
-                <= 4 => "4d",
-                <= 5 => "5d",
-                <= 6 => "6d",
-                <= 7 => "1w",
-                <= 14 => "2w",
-                <= 21 => "3w",
-                <= 28 => "4w",
-                _ => "old"
-            };
+                if ((int)age.TotalDays <= rating.AgeDays)
+                    return rating.Result;
+            }   
+            return "rating error";
         }
         #endregion
         #region Sending results
-        private void SendOutResults(Results results)
+        private void SendOutResults(Results results, string dataObjectName)
         {
             if (true)
             {
                 if (!ConnectToHomenetServer())
                     Logger("Error connecting to homenet server.");
                 else
-                    UpdateDataObject(results);
+                    UpdateDataObject(results, dataObjectName);
                 return;
             }
         }
@@ -236,12 +385,12 @@ namespace BackupServerDaemon
             }
         }
 
-        private void UpdateDataObject(Results results)
+        private void UpdateDataObject(Results results, string dataObjectName)
         {
             if (_homenetClient is null)
                 return;
 
-            bool success = _homenetClient.UpdateValueOnly(new DataObject() { Name = _config.DataObject, Value = results.Result});
+            bool success = _homenetClient.UpdateValueOnly(new DataObject() { Name = dataObjectName, Value = results.Rating});
             if (success)
                 Logger($"server updated");
             else

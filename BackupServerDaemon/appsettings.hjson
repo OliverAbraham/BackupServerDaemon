@@ -1,11 +1,56 @@
 ﻿{
-ServerURL               : "<YOUR SERVER URL>"
-Username                : "<SERVER BASIC AUTHENTICAION USERNAME>"
-Password                : "<SERVER BASIC AUTHENTICAION PASSWORD>"
-ServerTimeout           : 60
-UpdateIntervalInMinutes : 1
-TimezoneOffset          : 2
-BaseFolder              : "/mnt"
-Folder                  : "dev-disk-by-uuid-436974ef-70d4-45cf-885c-0aedcd80d737/BackupServer1/Server1-Pull-K/Archiv"
-DataObject              : "BACKUP_NAS"
+    ServerURL               : "<YOUR SERVER URL>"
+    Username                : "<SERVER BASIC AUTHENTICAION USERNAME>"
+    Password                : "<SERVER BASIC AUTHENTICAION PASSWORD>"
+    ServerTimeout           : 60
+    UpdateIntervalInMinutes : 1
+    TimezoneOffset          : 2
+    BaseFolder              : "//NAS"
+    Groups: [
+    {
+        DataObjectName      : "BACKUP_NAS"
+        Folders: [
+        {
+            Path            : "BackupServer1/Server1-Pull-K/Archiv"
+            Strategy        : "TakeNewestFileInRoot"
+            IndicatorFile   : "*"
+        },
+        {
+            Path            : "BackupServer1/Server1-Pull-K/Nebenberuf"
+            Strategy        : "TakeNewestFileInRoot"
+            IndicatorFile   : "*"
+        },
+        {
+            Path            : "BackupServer1/Server1-Pull-K/Haus_und_Finanzen"
+            Strategy        : "TakeNewestFileInRoot"
+            IndicatorFile   : "*"
+        },
+        {
+            Path            : "BackupServer1/Server1-Pull-K/Sicherungen"
+            Strategy        : "TakeNewestFileInRoot"
+            IndicatorFile   : "*"
+        },
+        {
+            Path            : "BackupServer1/Server1-Pull-K/Temp"
+            Strategy        : "TakeNewestFileInRoot"
+            IndicatorFile   : "*"
+        }
+        ]
+        Strategy            : "TakeOldestFolder"
+        Ratings: [
+            { AgeDays:       0, Result : "OK"  },
+            { AgeDays:       1, Result : "1d"  },
+            { AgeDays:       2, Result : "2d"  },
+            { AgeDays:       3, Result : "3d"  },
+            { AgeDays:       4, Result : "4d"  },
+            { AgeDays:       5, Result : "5d"  },
+            { AgeDays:       6, Result : "6d"  },
+            { AgeDays:       7, Result : "1w"  },
+            { AgeDays:      14, Result : "2w"  },
+            { AgeDays:      21, Result : "3w"  },
+            { AgeDays:      28, Result : "4w"  },
+            { AgeDays: 9999999, Result : "old" }
+        ]
+    }
+    ]
 }

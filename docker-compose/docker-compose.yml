@@ -7,5 +7,5 @@ services:
       - 32080:80
     volumes:
       - /home/pi/backupserverdaemon/appsettings.hjson:/opt/appsettings.hjson
-      - /srv:/mnt
+      - /srv/dev-disk-by-uuid-436974ef-70d4-45cf-885c-0aedcd80d737:/mnt
     restart: unless-stopped
