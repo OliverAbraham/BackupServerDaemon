@@ -49,6 +49,7 @@ namespace BackupServerDaemon
             public int ServerTimeout { get; set; }
             public int MaxLogMessagesInUI { get; set; }
             public int UpdateIntervalInMinutes { get; set; }
+            public int TimezoneOffset { get; set; }
             public string BaseFolder { get; set; }  // this should be a container volume
             public string Folder { get; set; }
             public string DataObject { get; set; }
@@ -62,6 +63,7 @@ namespace BackupServerDaemon
                     $"ServerTimeout           : {ServerTimeout}\n" +
                     $"MaxLogMessagesInUI      : {MaxLogMessagesInUI}\n" +
                     $"UpdateIntervalInMinutes : {UpdateIntervalInMinutes}\n" +
+                    $"TimezoneOffset          : {TimezoneOffset} hours\n" +
                     $"BaseFolder              : {BaseFolder} (this should be a docker volume mounted into the container, e.g. /mnt)\n" +
                     $"Folder                  : {Folder}\n" +
                     $"DataObject name         : {DataObject}\n";
@@ -154,12 +156,15 @@ namespace BackupServerDaemon
                 Logger($"Reading folder '{folder}'");
 
                 var files = Directory.GetFiles(folder);
-                var creationTimes = files.Select(file => File.GetCreationTime(file)).ToList();
-                var maxTime = creationTimes.Max();
-                var age = DateTime.Now - maxTime;
+                var lastWriteTimes = files.Select(file => File.GetLastWriteTime(file)).ToList();
+                var youngestWriteTime = lastWriteTimes.Max();
+                var age = DateTime.Now - youngestWriteTime;
                 var result = InterpretAge(age);
+
+                // adjust displayed time to a hard coded timezone of necessary
+                youngestWriteTime = youngestWriteTime.AddHours(_config.TimezoneOffset);
                 
-                Logger($"The newest file has date/time {maxTime.ToString("yyyy-MM-dd HH:mm:ss")}. Age: {(int)age.TotalDays} days. Result: {result}");
+                Logger($"The youngest file is of {youngestWriteTime.ToString("yyyy-MM-dd HH:mm:ss")}. Age: {FormatAge(age)}. Result: {result} ");
                 return new Results(true, result);
             }
             catch (Exception ex)
@@ -167,6 +172,20 @@ namespace BackupServerDaemon
                 Logger($"Error reading folder '{folder}': {ex}");
                 return new Results(false, ex);
             }
+        }
+
+        private string FormatAge(TimeSpan age)
+        {
+            var result = "";
+
+            if (age.Days > 0)
+                result += $"{age.Days}d ";
+            if (age.Hours > 0)
+                result += $"{age.Hours}h ";
+            if (age.Minutes > 0)
+                result += $"{age.Minutes}m ";
+
+            return result.Trim();
         }
 
         private string InterpretAge(TimeSpan age)

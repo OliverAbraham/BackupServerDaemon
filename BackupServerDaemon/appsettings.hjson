@@ -4,6 +4,7 @@ Username                : "<SERVER BASIC AUTHENTICAION USERNAME>"
 Password                : "<SERVER BASIC AUTHENTICAION PASSWORD>"
 ServerTimeout           : 60
 UpdateIntervalInMinutes : 1
+TimezoneOffset          : 2
 BaseFolder              : "/mnt"
 Folder                  : "dev-disk-by-uuid-436974ef-70d4-45cf-885c-0aedcd80d737/BackupServer1/Server1-Pull-K/Archiv"
 DataObject              : "BACKUP_NAS"
