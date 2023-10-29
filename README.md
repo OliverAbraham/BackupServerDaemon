@@ -21,8 +21,8 @@ https://www.apache.org/licenses/LICENSE-2.0
 
 ## COMPATIBILITY
 
-The nuget package was build with DotNET 6.
-You can run it as a command line application on Windows and Linux, or as a Container everywhere.
+The application was build with DotNET 6.
+You can run it as a command line application on Windows and Linux, or as a container everywhere.
 
 
 
@@ -33,7 +33,7 @@ Take my example file as a guideline.
 
 ### appsettings.hjson
 
-The application will search first for the file in /opt/appsettings.hjson, 
+On startup, the application will search first for the file in /opt/appsettings.hjson, 
 then if not found in the current directory. That means if your're running the docker container,
 you can mount the file from your host into the container in /opt.
 Or, if you decide to compile it by yourself and run it as a command line application, 
@@ -179,11 +179,11 @@ I take the oldest folder. So for example, if I have 3 folders that were backuppe
 
 
 # SCREENSHOTS
-![Alt Text](screenshots/screenshot1.jpg)
+![Alt Text](Screenshots/screenshot1.jpg)
 
 This is a picture of my dashboard where the results are displayed:
 (dashboard can be found in my repo "AllOnOnePage")
-![Alt Text](screenshots/screenshot2.jpg)
+![Alt Text](Screenshots/screenshot2.jpg)
 
 
 # MAKE A DONATION !
