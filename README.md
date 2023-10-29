@@ -189,4 +189,4 @@ This is a picture of my dashboard where the results are displayed:
 # MAKE A DONATION !
 
 If you find this application useful, buy me a coffee!
-I would appreciate a small donation on https://www.buymeacoffee.com
+I would appreciate a small donation on https://www.buymeacoffee.com/oliverabraham
