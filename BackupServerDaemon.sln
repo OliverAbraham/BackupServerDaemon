@@ -19,6 +19,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "3 Solution items", "3 Solut
 		README.md = README.md
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "4 Screenshots", "4 Screenshots", "{1D9CED96-C930-4FA0-80FE-CB931EA75122}"
+	ProjectSection(SolutionItems) = preProject
+		Screenshots\screenshot1.jpg = Screenshots\screenshot1.jpg
+		Screenshots\screenshot2.jpg = Screenshots\screenshot2.jpg
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

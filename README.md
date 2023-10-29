@@ -13,13 +13,13 @@ in the root dir of every shared folder, every night. On the backup server, I'm m
 the age of this file. If it's older than 24 hours, something went wrong with the backup job
 and I get an alarm.
 
-## License
+## LICENSE
 
 Licensed under Apache licence.
 https://www.apache.org/licenses/LICENSE-2.0
 
 
-## Compatibility
+## COMPATIBILITY
 
 The nuget package was build with DotNET 6.
 You can run it as a command line application on Windows and Linux, or as a Container everywhere.
@@ -137,7 +137,7 @@ Please feel free to comment and suggest improvements!
 ## SOURCE CODE
 
 The source code is hosted at:
-https://github.com/OliverAbraham/Abraham.BackupServerDaemon
+https://github.com/OliverAbraham/BackupServerDaemon
 
 
 ## appsettings file configuration
@@ -178,7 +178,15 @@ I take the oldest folder. So for example, if I have 3 folders that were backuppe
 - Ratings: Here you can put a set of rules to summerize the age in days to a status message.
 
 
-## MAKE A DONATION !
+# SCREENSHOTS
+![Alt Text](screenshots/screenshot1.jpg)
+
+This is a picture of my dashboard where the results are displayed:
+(dashboard can be found in my repo "AllOnOnePage")
+![Alt Text](screenshots/screenshot2.jpg)
+
+
+# MAKE A DONATION !
 
 If you find this application useful, buy me a coffee!
 I would appreciate a small donation on https://www.buymeacoffee.com
