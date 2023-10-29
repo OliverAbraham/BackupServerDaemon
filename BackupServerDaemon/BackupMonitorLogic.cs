@@ -1,7 +1,7 @@
-﻿using Abraham.HomenetBase.Connectors;
+﻿using Abraham.ProgramSettingsManager;
+using Abraham.HomenetBase.Connectors;
 using Abraham.HomenetBase.Models;
-using Abraham.ProgramSettingsManager;
-using Microsoft.AspNetCore.Mvc.RazorPages;
+using Abraham.MQTTClient;
 
 namespace BackupServerDaemon
 {
@@ -59,6 +59,9 @@ namespace BackupServerDaemon
             public string ServerURL { get; set; }
             public string Username { get; set; }
             public string Password { get; set; }
+            public string MqttServerURL { get; set; }
+            public string MqttUsername { get; set; }
+            public string MqttPassword { get; set; }
             public int ServerTimeout { get; set; }
             public int MaxLogMessagesInUI { get; set; }
             public int UpdateIntervalInMinutes { get; set; }
@@ -69,9 +72,8 @@ namespace BackupServerDaemon
             public override string ToString()
             {
                 return 
-                    $"ServerURL               : {ServerURL}\n" +
-                    $"Username                : {Username}\n" +
-                    $"Password                : ***************\n" +
+                    $"Home Automation Server  : {ServerURL} / {Username} / ***************\n" +
+                    $"MQTT Broker             : {MqttServerURL} / {MqttUsername} / ***************\n" +
                     $"ServerTimeout           : {ServerTimeout}\n" +
                     $"MaxLogMessagesInUI      : {MaxLogMessagesInUI}\n" +
                     $"UpdateIntervalInMinutes : {UpdateIntervalInMinutes}\n" +
@@ -84,6 +86,7 @@ namespace BackupServerDaemon
         private class Group
         {
             public string DataObjectName { get; set; }
+            public string MqttTopic { get; set; }
             public string Strategy { get; set; }
             public List<Folder> Folders { get; set; }
             public List<Rating> Ratings { get; set; }
@@ -91,6 +94,7 @@ namespace BackupServerDaemon
             public override string ToString()
             {
                 return $"    DataObject         : {DataObjectName}\n" +
+                       $"    MQTT topic         : {MqttTopic}\n" +
                        $"    Strategy           : {Strategy}\n" +
                        $"    Folders:\n" + string.Join("\n", Folders) +
                        $"    Ratings:\n" + string.Join("\n", Ratings) +
@@ -127,17 +131,20 @@ namespace BackupServerDaemon
         private Configuration _config;
         private ProgramSettingsManager<Configuration> _configurationManager;
         
-        // if this file exists in the container, it will be used as configuration file
-        private const string _configurationFilenameOption1 = "/opt/appsettings.hjson";
+        // These file locations will be tried. The first file found will be used as configuration file
+        private string[] _settingsFileOptions = new string[]
+        {
+            @"C:\Credentials\BackupServerDaemon\appsettings.hjson",
+            "/opt/appsettings.hjson",
+            "./appsettings.hjson",
+        };
         
-        // second try will be made with this file
-        private const string _configurationFilenameOption2 = "./appsettings.hjson";
-        
-        // contains the filename of the configuration file that was actually used
+        // contains the filename of the configuration file that was actually chosen
         private string _configurationFilename = "";
         #endregion
-        #region Home automation server connection
+        #region Server connections
         private static DataObjectsConnector _homenetClient;
+        private static MQTTClient _mqttClient;
         #endregion
         #region private Types
         private class FileDetail
@@ -171,14 +178,12 @@ namespace BackupServerDaemon
         /// </summary>
         public bool ReadConfiguration()
         {
-            Logger($"Trying to read configuration from '{_configurationFilenameOption1}'...");
-            if (File.Exists(_configurationFilenameOption1))
-                return ReadConfiguration_internal(_configurationFilenameOption1);
-
-            Logger($"Trying to read configuration from '{_configurationFilenameOption2}'...");
-            if (File.Exists(_configurationFilenameOption2))
-                return ReadConfiguration_internal(_configurationFilenameOption2);
-
+            foreach(var option in _settingsFileOptions)
+            {
+                Logger($"Trying to read configuration from '{option}'...");
+                if (File.Exists(option))
+                    return ReadConfiguration_internal(option);
+            }
             return ReadConfiguration_error();
         }
 
@@ -224,7 +229,7 @@ namespace BackupServerDaemon
                 Logger($"Group: {group.DataObjectName}");
                 var result = CheckGroup(group);
                 if (result.Success)
-                    SendOutResults(result, group.DataObjectName);
+                    SendOutResults(result, group.DataObjectName, group.MqttTopic);
             }
         }
 
@@ -357,16 +362,31 @@ namespace BackupServerDaemon
         }
         #endregion
         #region Sending results
-        private void SendOutResults(Results results, string dataObjectName)
+        private void SendOutResults(Results results, string dataObjectName, string mqttTopic)
         {
-            if (true)
+            if (HomenetServerIsConfigured())
             {
                 if (!ConnectToHomenetServer())
                     Logger("Error connecting to homenet server.");
                 else
                     UpdateDataObject(results, dataObjectName);
-                return;
             }
+
+            if (MqttBrokerIsConfigured())
+            {
+                if (!ConnectToMqttBroker())
+                    Logger("Error connecting to MQTT broker.");
+                else
+                    UpdateTopic(results, mqttTopic);
+            }
+        }
+        #endregion
+        #region Home automation server connection
+        private bool HomenetServerIsConfigured()
+        {
+            return !string.IsNullOrWhiteSpace(_config.ServerURL) && 
+                   !string.IsNullOrWhiteSpace(_config.Username) && 
+                   !string.IsNullOrWhiteSpace(_config.Password);
         }
 
         private bool ConnectToHomenetServer()
@@ -395,6 +415,49 @@ namespace BackupServerDaemon
                 Logger($"server updated");
             else
                 Logger($"server update error! {_homenetClient.LastError}");
+        }
+        #endregion
+        #region MQTT broker connection
+        private bool MqttBrokerIsConfigured()
+        {
+            return !string.IsNullOrWhiteSpace(_config.MqttServerURL) && 
+                   !string.IsNullOrWhiteSpace(_config.MqttUsername) && 
+                   !string.IsNullOrWhiteSpace(_config.MqttPassword);
+        }
+
+        private bool ConnectToMqttBroker()
+        {
+            Logger("Connecting to MQTT broker...");
+            try
+            {
+                _mqttClient = new MQTTClient()
+                    .UseUrl(_config.MqttServerURL)
+                    .UseUsername(_config.MqttUsername)
+                    .UsePassword(_config.MqttPassword)
+                    .UseTimeout(_config.ServerTimeout)
+                    .UseLogger(delegate(string message) { Logger(message); })
+                    .Build();
+
+                Logger("Created MQTT client");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger("Error connecting to homenet server:\n" + ex.ToString());
+                return false;
+            }
+        }
+
+        private void UpdateTopic(Results results, string topicName)
+        {
+            if (_mqttClient is null || results is null)
+                return;
+
+            var result = _mqttClient.Publish(topicName, results.Rating);
+            if (result.IsSuccess)
+                Logger($"MQTT topic updated");
+            else
+                Logger($"MQTT topic update error! {result.ReasonString}");
         }
         #endregion
         #region Reading configuration file

@@ -1,7 +1,10 @@
 ﻿{
-    ServerURL               : "<YOUR SERVER URL>"
-    Username                : "<SERVER BASIC AUTHENTICAION USERNAME>"
-    Password                : "<SERVER BASIC AUTHENTICAION PASSWORD>"
+    ServerURL               : "<HOME AUTOMATION SERVER URL>"
+    Username                : "<HOME AUTOMATION SERVER USERNAME>"
+    Password                : "<HOME AUTOMATION SERVER PASSWORD>"
+    MqttServerURL           : "<MQTT BROKER URL>"
+    MqttUsername            : "<MQTT BROKER USERNAME>"
+    MqttPassword            : "<MQTT BROKER PASSWORD>"
     ServerTimeout           : 60
     UpdateIntervalInMinutes : 1
     TimezoneOffset          : 2
@@ -9,6 +12,7 @@
     Groups: [
     {
         DataObjectName      : "BACKUP_NAS"
+        MqttTopic           : "Monitoring/Backup_NAS"
         Folders: [
         {
             Path            : "BackupServer1/Server1-Pull-K/Archiv"

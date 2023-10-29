@@ -32,6 +32,7 @@
 
   <ItemGroup>
 	  <PackageReference Include="Abraham.HomenetBase" Version="1.0.2" />
+	  <PackageReference Include="Abraham.MQTTClient" Version="1.0.0" />
 	  <PackageReference Include="Abraham.ProgramSettingsManager" Version="1.0.2" />
 	  <PackageReference Include="Abraham.Scheduler" Version="1.0.0" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.19.5" />

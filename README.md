@@ -2,8 +2,10 @@
 
 ## OVERVIEW
 
-Monitors a backup server and sends monitoring data to my home automation server.
+Monitors a backup server and sends monitoring data to an MQTT broker.
 Checks that every backup job has been executed and that backups are not too old.
+To use it, you need an MQTT broker, for example Mosquitto (https://mosquitto.org/).
+Mosquitto can also be used inside Homeassistant. (https://www.home-assistant.io/).
 
 
 ## IDEA
@@ -41,16 +43,20 @@ you can put the file in the bin directory.
 
 ```
 {
-    ServerURL               : "<YOUR SERVER URL>"
-    Username                : "<SERVER BASIC AUTHENTICAION USERNAME>"
-    Password                : "<SERVER BASIC AUTHENTICAION PASSWORD>"
+    ServerURL               : ""
+    Username                : ""
+    Password                : ""
+    MqttServerURL           : "<YOUR MQTT BROKER URL>"
+    MqttUsername            : "<YOUR MQTT BROKER USERNAME>"
+    MqttPassword            : "<YOUR MQTT BROKER PASSWORD>"
     ServerTimeout           : 60
     UpdateIntervalInMinutes : 1
     TimezoneOffset          : 2
     BaseFolder              : "/mnt"
     Groups: [
     {
-        DataObjectName      : "BACKUP_NAS"
+        DataObjectName      : ""
+        MqttTopic           : "Monitoring/Backup_NAS"
         Folders: [
         {
             Path            : "BackupServer1/Server1-Pull-K/Archiv"
@@ -122,9 +128,15 @@ The app has a small web interface that shows the recent log output.
 (Please forgive me, that wasn't in my focus, also adding a log file hasn't been done yet)
 
 
-## ABOUT THE HNSERVER API
 
-The API documentation is not yet available.
+## ABOUT MQTT
+To use my app, you need an MQTT broker, for example Mosquitto (https://mosquitto.org/).
+Mosquitto can also be used inside Homeassistant. (https://www.home-assistant.io/).
+The API documentation can be found at https://mqtt.org/
+To get started with MQTT targets, you can start with my demo app in this repository: https://github.com/OliverAbraham/Abraham.MQTTClient. 
+It will simply send a message to the broker and then exit.
+To display MQTT data nicely on a dashboard, try out my dashboard app: https://github.com/OliverAbraham/AllOnOnePage
+
 
 
 ## AUTHOR
@@ -142,9 +154,15 @@ https://github.com/OliverAbraham/BackupServerDaemon
 
 ## appsettings file configuration
 
-- ServerURL, Username, Password, ServerTimeout
-These are the parameters to connect to my HNServer home automation server.
+- ServerURL, Username, Password
+These are the parameters to connect to my personal home automation server "HNServer".
+This is useless for you because I haven't published this project yet.
 
+- MqttServerURL, MqttUsername, MqttPassword
+These are the parameters to connect to your MQTT broker.
+
+- ServerTimeout
+The time in seconds before giving up :-)
 
 - UpdateIntervalInMinutes
 The frequency in which the application will check the backup server.
@@ -174,9 +192,10 @@ I take the oldest folder. So for example, if I have 3 folders that were backuppe
 
 
 ### Group configuration
+- DataObject: only for my personal home automation server
+- MqttTopic: the destination topic for the status message
 - Strategy: "TakeOldestFolder" or "TakeNewestFolder"
 - Ratings: Here you can put a set of rules to summerize the age in days to a status message.
-
 
 # SCREENSHOTS
 ![Alt Text](Screenshots/screenshot1.jpg)
@@ -184,6 +203,9 @@ I take the oldest folder. So for example, if I have 3 folders that were backuppe
 This is a picture of my dashboard where the results are displayed:
 (dashboard can be found in my repo "AllOnOnePage")
 ![Alt Text](Screenshots/screenshot2.jpg)
+
+This is a picture of my MQTT broker receiving the values:
+![Alt Text](Screenshots/screenshot3.jpg)
 
 
 # MAKE A DONATION !
