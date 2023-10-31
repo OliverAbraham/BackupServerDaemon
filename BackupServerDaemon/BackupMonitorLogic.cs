@@ -272,8 +272,8 @@ namespace BackupServerDaemon
             var orderedResults = groupResults.OrderBy(x => x.Age);
             
             var totalRating = (group.Strategy == "TakeNewestFolder")
-                ? orderedResults.Last().Rating
-                : orderedResults.First().Rating;
+                ? orderedResults.First().Rating
+                : orderedResults.Last().Rating;
 
             Logger($"Total rating: {totalRating}");
             return totalRating;
