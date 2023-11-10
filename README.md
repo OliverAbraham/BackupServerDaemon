@@ -1,5 +1,8 @@
 # Abraham.BackupServerDaemon
 
+![](https://img.shields.io/github/license/oliverabraham/backupserverdaemon) ![](https://img.shields.io/github/languages/count/oliverabraham/backupserverdaemon) ![GitHub Repo stars](https://img.shields.io/github/stars/oliverabraham/backupserverdaemon?label=repo%20stars) ![GitHub Repo stars](https://img.shields.io/github/stars/oliverabraham?label=user%20stars)
+
+
 ## OVERVIEW
 
 Monitors a backup server and sends monitoring data to an MQTT broker.
