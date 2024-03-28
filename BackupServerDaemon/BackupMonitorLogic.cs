@@ -212,24 +212,24 @@ namespace BackupServerDaemon
         #region Monitoring
         private void CheckAllGroups()
         {
-            try
-            {
-                CheckAllGroups_internal();
-            }
-            catch (Exception ex)
-            {
-                Logger($"Error reading groups: {ex}");
-            }
+            CheckAllGroups_internal();
         }
 
         private void CheckAllGroups_internal()
         {
             foreach (var group in _config.Groups)
             {
-                Logger($"Group: {group.DataObjectName}");
-                var result = CheckGroup(group);
-                if (result.Success)
-                    SendOutResults(result, group.DataObjectName, group.MqttTopic);
+                try
+                {
+                    Logger($"Group: {group.DataObjectName}");
+                    var result = CheckGroup(group);
+                    if (result.Success)
+                        SendOutResults(result, group.DataObjectName, group.MqttTopic);
+                }
+                catch (Exception ex)
+                {
+                    Logger($"CheckAllGroups_internal: Error processing directory group '{group.DataObjectName}': {ex}");
+                }
             }
         }
 
@@ -364,20 +364,44 @@ namespace BackupServerDaemon
         #region Sending results
         private void SendOutResults(Results results, string dataObjectName, string mqttTopic)
         {
-            if (HomenetServerIsConfigured())
-            {
-                if (!ConnectToHomenetServer())
-                    Logger("Error connecting to homenet server.");
-                else
-                    UpdateDataObject(results, dataObjectName);
-            }
+            SendOutToHomenet(results, dataObjectName);
+            SendOutToMQTT(results, mqttTopic);
+        }
 
-            if (MqttBrokerIsConfigured())
+        private void SendOutToHomenet(Results results, string dataObjectName)
+        {
+            try
             {
-                if (!ConnectToMqttBroker())
-                    Logger("Error connecting to MQTT broker.");
-                else
-                    UpdateTopic(results, mqttTopic);
+                if (HomenetServerIsConfigured())
+                {
+                    if (!ConnectToHomenetServer())
+                        Logger("Error connecting to homenet server.");
+                    else
+                        UpdateDataObject(results, dataObjectName);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger($"SendOutToHomenet: {ex}");
+            }
+        }
+
+        private void SendOutToMQTT(Results results, string mqttTopic)
+        {
+            try
+            {
+                if (MqttBrokerIsConfigured())
+                {
+                    Logger("Connecting to MQTT broker...");
+                    if (!ConnectToMqttBroker())
+                        Logger("Error connecting to MQTT broker.");
+                    else
+                        UpdateTopic(results, mqttTopic);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger($"SendOutToMQTT: {ex}");
             }
         }
         #endregion
@@ -443,7 +467,7 @@ namespace BackupServerDaemon
             }
             catch (Exception ex)
             {
-                Logger("Error connecting to homenet server:\n" + ex.ToString());
+                Logger("Error connecting to MQTT broker:\n" + ex.ToString());
                 return false;
             }
         }

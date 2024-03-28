@@ -19,7 +19,8 @@ namespace BackupServerDaemon
             if (!InitBackupMonitor())
                 return;
             Divider();
-            InitScheduler();
+            if (!InitScheduler())
+                return;
             InitAndStartWebServer(args);
         }
         #endregion
@@ -54,14 +55,25 @@ namespace BackupServerDaemon
             return success;
         }
 
-        private static void InitScheduler()
+        private static bool InitScheduler()
         {
-            Log("Starting periodic monitoring. Press Ctrl-C to stop.");
+            if (_logic.UpdateIntervalInMinutes == 0)
+            {
+                Log("Doing a single monitoring run, then ending, because parameter 'UpdateIntervalInMinutes' is 0");
+                _logic.Check();
+                Log("ending.");
+                return false;
+            }
+            else
+            {
+                Log("Starting periodic monitoring. Press Ctrl-C to stop.");
 
-            _scheduler = new Scheduler()
-                .UseIntervalMinutes(_logic.UpdateIntervalInMinutes)
-                .UseAction(() => _logic.Check())
-                .Start();
+                _scheduler = new Scheduler()
+                    .UseIntervalMinutes(_logic.UpdateIntervalInMinutes)
+                    .UseAction(() => _logic.Check())
+                    .Start();
+                return true;
+            }
         }
 
         private static void InitAndStartWebServer(string[] args)
