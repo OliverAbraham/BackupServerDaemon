@@ -21,7 +21,12 @@
     
     // Timeout for Homenet, MQTT and SMTP communication in seconds
     ServerTimeout           : 60
-    
+
+    // This sets a limit for the web log
+    MaxLogMessagesInUI      : 1000
+
+    // set this to zero if you want to do one run an then exit
+    // set this to a greater value to have the job done every n minutes
     UpdateIntervalInMinutes : 1
     
     // Offset in hours if the program runs on a machine with a different timezone set than the fileserver
@@ -40,27 +45,12 @@
         MqttTopic           : "Monitoring/Backup_NAS"
         Folders: [
         {
-            Path            : "BackupServer1/Server1-Pull-K/Archiv"
+            Path            : "MyFirstSubfolderInNAS"
             Strategy        : "TakeNewestFileInRoot"
             IndicatorFile   : "*"
         },
         {
-            Path            : "BackupServer1/Server1-Pull-K/Nebenberuf"
-            Strategy        : "TakeNewestFileInRoot"
-            IndicatorFile   : "*"
-        },
-        {
-            Path            : "BackupServer1/Server1-Pull-K/Haus_und_Finanzen"
-            Strategy        : "TakeNewestFileInRoot"
-            IndicatorFile   : "*"
-        },
-        {
-            Path            : "BackupServer1/Server1-Pull-K/Sicherungen"
-            Strategy        : "TakeNewestFileInRoot"
-            IndicatorFile   : "*"
-        },
-        {
-            Path            : "BackupServer1/Server1-Pull-K/Temp"
+            Path            : "MySecondSubfolderInNAS"
             Strategy        : "TakeNewestFileInRoot"
             IndicatorFile   : "*"
         }
