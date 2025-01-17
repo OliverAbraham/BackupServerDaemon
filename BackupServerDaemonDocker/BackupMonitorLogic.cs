@@ -182,6 +182,7 @@ namespace BackupServerDaemon
         
         // contains the filename of the configuration file that was actually chosen
         private string _configurationFilename = "";
+        private static List<string> _logForNotificationEmail = new();
 
         #region Server connections
         private static DataObjectsConnector _homenetClient;
@@ -224,7 +225,7 @@ namespace BackupServerDaemon
         {
             foreach(var option in _settingsFileOptions)
             {
-                Logger($"Trying to read configuration from '{option}'...");
+                Log($"Trying to read configuration from '{option}'...");
                 if (File.Exists(option))
                     return ReadConfiguration_internal(option);
             }
@@ -237,8 +238,8 @@ namespace BackupServerDaemon
         public void LogConfiguration()
         {
             var lines = _config.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
-            lines.ForEach(line => Logger(line));
-            Logger("");
+            lines.ForEach(line => Log(line));
+            Log("");
         }
 
         /// <summary>
@@ -246,6 +247,7 @@ namespace BackupServerDaemon
         /// </summary>
         public void Check()
         {
+            ResetLogForEmail();
             CheckAllGroups();
         }
         #endregion
@@ -261,7 +263,7 @@ namespace BackupServerDaemon
 
         private void CheckAllGroups_internal()
         {
-            Logger($"Analysis started.");
+            Log($"Analysis started.");
 
             var allGroupResults = new List<Results>();
 
@@ -269,7 +271,10 @@ namespace BackupServerDaemon
             {
                 try
                 {
-                    Logger($"Group: {group.DataObjectName}");
+                    Log($"");
+                    Log($"");
+                    Log($"---------------------------------------- Group: {group.DataObjectName} ----------------------------------------");
+                    Log($"Group: {group.DataObjectName}");
                     var result = CheckGroup(group);
                     if (result.Success)
                     {
@@ -279,14 +284,14 @@ namespace BackupServerDaemon
                 }
                 catch (Exception ex)
                 {
-                    Logger($"CheckAllGroups_internal: Error processing directory group '{group.DataObjectName}': {ex}");
+                    Log($"CheckAllGroups_internal: Error processing directory group '{group.DataObjectName}': {ex}");
                 }
             }
-            Logger($"All groups processed");
+            Log($"All groups processed");
 
             SendOutEmail(allGroupResults);
-            Logger($"Analysis ended. Next in {_config.UpdateIntervalInMinutes} minutes.");
-            Logger($"");
+            Log($"Analysis ended. Next in {_config.UpdateIntervalInMinutes} minutes.");
+            Log($"");
         }
 
         private Results CheckGroup(Group group)
@@ -303,7 +308,7 @@ namespace BackupServerDaemon
             }
             catch (Exception ex)
             {
-                Logger($"Error reading group: {ex}");
+                Log($"Error reading group: {ex}");
                 return new Results(false, ex);
             }
         }
@@ -313,15 +318,15 @@ namespace BackupServerDaemon
             if (group.Strategy != "TakeNewestFolder" && 
                 group.Strategy != "TakeOldestFolder")
             {
-                Logger($"    Unknown strategy '{group.Strategy}'. Allowed values are 'TakeNewestFolder' and 'TakeOldestFolder'");
+                Log($"    Unknown strategy '{group.Strategy}'. Allowed values are 'TakeNewestFolder' and 'TakeOldestFolder'");
                 return new Results(false, "rating error");
             }
 
-            Logger($"");
-            Logger($"    Merging group results with strategy {group.Strategy}:");
+            Log($"");
+            Log($"    Merging group results with strategy {group.Strategy}:");
             foreach(var result in groupResults)
             {
-                Logger($"    {result.FolderName,-50} --> {result.Rating,-5} ({result.Age} days)");
+                Log($"    {result.FolderName,-50} --> {result.Rating,-5} ({result.Age} days)");
                 if (result.Rating == "rating error")
                     return new Results(false, "rating error");
             }
@@ -332,7 +337,7 @@ namespace BackupServerDaemon
                 ? orderedResults.First()
                 : orderedResults.Last();
 
-            Logger($"    Rating          : {totalRating.Age} days ----> {totalRating.Rating}");
+            Log($"    Rating          : {totalRating.Age} days ----> {totalRating.Rating}");
             return totalRating;
         }
 
@@ -344,7 +349,7 @@ namespace BackupServerDaemon
             }
             catch (Exception ex)
             {
-                Logger($"Error reading folder: {ex}");
+                Log($"Error reading folder: {ex}");
                 return new Results(false, ex.ToString(), 999999, folder.Path);
             }
         }
@@ -352,12 +357,12 @@ namespace BackupServerDaemon
         private Results CheckFolder_internal(Folder folder, List<Rating> ratings)
         {
             var folderFullPath = Path.Combine(_config.BaseFolder, folder.Path);
-            Logger($"    Reading folder  : '{folderFullPath}' with mask '{folder.IndicatorFile}'");
+            Log($"    Reading folder  : '{folderFullPath}' with mask '{folder.IndicatorFile}'");
 
             var fileNames = Directory.GetFiles(folderFullPath, folder.IndicatorFile, SearchOption.TopDirectoryOnly);
             if (fileNames.Count() == 0)
             {
-                Logger($"    No files found.");
+                Log($"    No files found.");
                 return new Results(true, "no data", 999999, folder.Path);
             }
 
@@ -381,7 +386,7 @@ namespace BackupServerDaemon
             }
             else
             {
-                Logger($"    Unknown strategy '{folder.Strategy}'. Allowed values are 'TakeNewestFileInRoot' and 'TakeOldestFileInRoot'");
+                Log($"    Unknown strategy '{folder.Strategy}'. Allowed values are 'TakeNewestFileInRoot' and 'TakeOldestFileInRoot'");
                 return new Results(true, "no data", 999999, folder.Path);
             }
 
@@ -390,9 +395,9 @@ namespace BackupServerDaemon
             // adjust displayed time to a hard coded timezone of necessary (if it isn't possible to set the docker container timezone)
             var displayedFileTime = pickedFile.Time.AddHours(_config.TimezoneOffset);
 
-            Logger($"    Picked file     : '{pickedFile.Name,-80}'");
-            Logger($"    Last write time : {displayedFileTime.ToString("yyyy-MM-dd HH:mm:ss")}");
-            Logger($"    Rating          : Age: {age.TotalDays} days. -----> {rating}");
+            Log($"    Picked file     : '{pickedFile.Name,-80}'");
+            Log($"    Last write time : {displayedFileTime.ToString("yyyy-MM-dd HH:mm:ss")}");
+            Log($"    Rating          : Age: {age.TotalDays} days. -----> {rating}");
             return new Results(true, rating, age.Days, folder.Path);
         }
 
@@ -434,17 +439,17 @@ namespace BackupServerDaemon
             {
                 if (HomenetServerIsConfigured())
                 {
-                    Logger($"");
-                    Logger($"Sending out group result to Home automation target");
+                    Log($"");
+                    Log($"Sending out group result to Home automation target");
                     if (!ConnectToHomenetServer())
-                        Logger("Error connecting to homenet server.");
+                        Log("Error connecting to homenet server.");
                     else
                         UpdateDataObject(results, dataObjectName);
                 }
             }
             catch (Exception ex)
             {
-                Logger($"SendOutToHomenet: {ex}");
+                Log($"SendOutToHomenet: {ex}");
             }
         }
 
@@ -454,18 +459,18 @@ namespace BackupServerDaemon
             {
                 if (MqttBrokerIsConfigured())
                 {
-                    Logger($"");
-                    Logger($"Sending out group result to MQTT target");
-                    Logger("Connecting to MQTT broker...");
+                    Log($"");
+                    Log($"Sending out group result to MQTT target");
+                    Log("Connecting to MQTT broker...");
                     if (!ConnectToMqttBroker())
-                        Logger("Error connecting to MQTT broker.");
+                        Log("Error connecting to MQTT broker.");
                     else
                         UpdateTopics(results, mqttTopic);
                 }
             }
             catch (Exception ex)
             {
-                Logger($"SendOutToMQTT: {ex}");
+                Log($"SendOutToMQTT: {ex}");
             }
         }
         #endregion
@@ -480,16 +485,16 @@ namespace BackupServerDaemon
 
         private bool ConnectToHomenetServer()
         {
-            Logger("Connecting to homenet server...");
+            Log("Connecting to homenet server...");
             try
             {
                 _homenetClient = new DataObjectsConnector(_config.ServerURL, _config.Username, _config.Password, _config.ServerTimeout);
-                Logger("Connect successful");
+                Log("Connect successful");
                 return true;
             }
             catch (Exception ex)
             {
-                Logger("Error connecting to homenet server:\n" + ex.ToString());
+                Log("Error connecting to homenet server:\n" + ex.ToString());
                 return false;
             }
         }
@@ -501,9 +506,9 @@ namespace BackupServerDaemon
 
             bool success = _homenetClient.UpdateValueOnly(new DataObject() { Name = dataObjectName, Value = results.Rating});
             if (success)
-                Logger($"server updated");
+                Log($"server updated");
             else
-                Logger($"server update error! {_homenetClient.LastError}");
+                Log($"server update error! {_homenetClient.LastError}");
         }
         #endregion
 
@@ -517,7 +522,7 @@ namespace BackupServerDaemon
 
         private bool ConnectToMqttBroker()
         {
-            Logger("Connecting to MQTT broker...");
+            Log("Connecting to MQTT broker...");
             try
             {
                 _mqttClient = new MQTTClient()
@@ -525,15 +530,15 @@ namespace BackupServerDaemon
                     .UseUsername(_config.MqttUsername)
                     .UsePassword(_config.MqttPassword)
                     .UseTimeout(_config.ServerTimeout)
-                    .UseLogger(delegate(string message) { Logger(message); })
+                    .UseLogger(delegate(string message) { Log(message); })
                     .Build();
 
-                Logger("Created MQTT client");
+                Log("Created MQTT client");
                 return true;
             }
             catch (Exception ex)
             {
-                Logger("Error connecting to MQTT broker:\n" + ex.ToString());
+                Log("Error connecting to MQTT broker:\n" + ex.ToString());
                 return false;
             }
         }
@@ -545,9 +550,9 @@ namespace BackupServerDaemon
 
             var result = _mqttClient.Publish(topicName, results.Rating);
             if (result.IsSuccess)
-                Logger($"MQTT topic updated");
+                Log($"MQTT topic updated");
             else
-                Logger($"MQTT topic update error! {result.ReasonString}");
+                Log($"MQTT topic update error! {result.ReasonString}");
         }
         #endregion
 
@@ -558,11 +563,11 @@ namespace BackupServerDaemon
             {
                 if (!_config.EmailParametersAreSet())
                 {
-                    Logger("Email option is disabled. Not all Email parameters are set.");
+                    Log("Email option is disabled. Not all Email parameters are set.");
                     return;
                 }
 
-                Logger("Sending an email with the results...");
+                Log("Sending an email with the results...");
 
                 if (!int.TryParse(_config.EmailSMTPPort, out int port))
                     throw new Exception($"The port number '{_config.EmailSMTPPort}' is not valid. Please check your settings!");
@@ -575,36 +580,36 @@ namespace BackupServerDaemon
                 if (_config.EmailUseSSL.ToLower() == "true")
                     _client.UseSecurityProtocol(Security.Ssl);
 
-                Logger("Connecting to the email host...");
+                Log("Connecting to the email host...");
                 _client.Open();
 
-                Logger("Preparing the subject...");
+                Log("Preparing the subject...");
                 string subject = PrepareSubject(groupResults);
-                Logger($"---------> '{subject}'");
+                Log($"---------> '{subject}'");
 
-                Logger("Preparing the body...");
+                Log("Preparing the body...");
                 var body = PrepareBody(groupResults);
 
-                Logger("Sending...");
+                Log("Sending...");
 
                 _client.SendEmail(_config.EmailFrom, _config.EmailTo, subject, body);
 
-                Logger("Sending was successful.");
+                Log("Sending was successful.");
 
                 _client.Close();
-                Logger("Connecting closed.");
+                Log("Connecting closed.");
             }
             catch (Exception ex)
             {
-                Logger("Problem sending an email!");
-                Logger(ex.ToString());
+                Log("Problem sending an email!");
+                Log(ex.ToString());
             }
         }
 
         private string PrepareSubject(List<Results> groupResults)
         {
             var subject = _config.EmailSubject;
-            var oldestAgeOfAllGroups = groupResults.Max(x => x.Age);
+            var oldestAgeOfAllGroups = groupResults.Where(x => !x.FolderName.Contains("BACKUP_EXTERN")).Max(x => x.Age);
             subject = subject.Replace("{{AGE}}", oldestAgeOfAllGroups.ToString());
             return subject;
         }
@@ -613,10 +618,21 @@ namespace BackupServerDaemon
         {
             var body = new StringBuilder();
             
+            body.AppendLine("---------------------------------------------------------------------------------------------------------------------------------------------------");
+            body.AppendLine("Summary:");
+            body.AppendLine("---------------------------------------------------------------------------------------------------------------------------------------------------");
+
             foreach (var results in groupResults)
             {
                 body.AppendLine(results.FormatForEmail());
             }
+
+            body.AppendLine("");
+            body.AppendLine("");
+            body.AppendLine("---------------------------------------------------------------------------------------------------------------------------------------------------");
+            body.AppendLine("Log:");
+            body.AppendLine("---------------------------------------------------------------------------------------------------------------------------------------------------");
+            _logForNotificationEmail.ForEach(m => body.AppendLine(m));
 
             return body.ToString();
         }
@@ -627,7 +643,7 @@ namespace BackupServerDaemon
         {
             try
             {
-                Logger($"success");
+                Log($"success");
                 _configurationFilename = filename;
 
                 _configurationManager = new ProgramSettingsManager<Configuration>()
@@ -637,36 +653,49 @@ namespace BackupServerDaemon
                 _config = _configurationManager.Data;
                 if (_config == null)
                 {
-                    Logger($"No valid configuration found!\nExpecting file '{_configurationFilename}'");
+                    Log($"No valid configuration found!\nExpecting file '{_configurationFilename}'");
                     return false;
                 }
 
                 if (_config.MaxLogMessagesInUI < 1)
-                    Logger($"Warning: Parameter '{nameof(_config.MaxLogMessagesInUI)}' is NOT set!");
+                    Log($"Warning: Parameter '{nameof(_config.MaxLogMessagesInUI)}' is NOT set!");
 
-                Logger($"Configuration taken from file '{_configurationFilename}'");
-                Logger($"");
-                Logger($"");
+                Log($"Configuration taken from file '{_configurationFilename}'");
+                Log($"");
+                Log($"");
                 return true;
             }
             catch (Exception ex)
             {
-                Logger($"There was a problem reading the configuration file '{_configurationFilename}'");
-                Logger($"Please check the contents");
-                Logger($"More Info: {ex}");
+                Log($"There was a problem reading the configuration file '{_configurationFilename}'");
+                Log($"Please check the contents");
+                Log($"More Info: {ex}");
                 return false;
             }
         }
 
         private bool ReadConfiguration_error()
         {
-            Logger($"No configuration file found!");
+            Log($"No configuration file found!");
             return false;
         }
 
         private void WriteConfiguration_internal()
         {
             _configurationManager.Save(_config);
+        }
+        #endregion
+
+        #region InternalLogger
+        private void Log(string message)
+        {
+            _logForNotificationEmail.Add(message);
+            Logger(message);
+        }
+        
+        private void ResetLogForEmail()
+        {
+            _logForNotificationEmail.Clear();
         }
         #endregion
         #endregion
