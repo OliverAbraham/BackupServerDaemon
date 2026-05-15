@@ -524,7 +524,7 @@ namespace BackupServerDaemon
             if (_mqttClient is null || results is null)
                 return;
 
-            var result = _mqttClient.Publish(topicName, results.Rating);
+            var result = _mqttClient.Publish(topicName, results.Rating, retain: true);
             if (result.IsSuccess)
                 Logger($"MQTT topic updated");
             else
