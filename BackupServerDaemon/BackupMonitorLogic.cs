@@ -43,9 +43,9 @@ namespace BackupServerDaemon
             public string FormatForEmail()
             {
                 if (Success)
-                    return $"Folder {FolderName,40} is {Age,2} days --> {Rating}";
+                    return $"Folder {FolderName,-40} is {Age,2} days --> {Rating}";
                 else
-                    return $"Folder {FolderName,40} couldn't be read. Error messages: {ErrorMessages}";
+                    return $"Folder {FolderName,-40} couldn't be read. Error messages: {ErrorMessages}";
             }
         }
         #endregion
@@ -286,8 +286,8 @@ namespace BackupServerDaemon
                 foreach(var folder in group.Folders)
                     groupResults.Add(CheckFolder(folder, group.Ratings));
 
-                var rating = RateGroupResults(group, groupResults);
-                return new Results(true, rating);
+                (var rating, var maxAge) = RateGroupResults(group, groupResults);
+                return new Results(true, rating, maxAge, group.MqttTopic);
             }
             catch (Exception ex)
             {
@@ -296,13 +296,13 @@ namespace BackupServerDaemon
             }
         }
 
-        private string RateGroupResults(Group group, List<Results> groupResults)
+        private (string, int) RateGroupResults(Group group, List<Results> groupResults)
         {
             if (group.Strategy != "TakeNewestFolder" && 
                 group.Strategy != "TakeOldestFolder")
             {
                 Logger($"    Unknown strategy '{group.Strategy}'. Allowed values are 'TakeNewestFolder' and 'TakeOldestFolder'");
-                return "rating error";
+                return ("rating error", 0);
             }
 
             Logger($"Merging group results with strategy {group.Strategy}:");
@@ -310,7 +310,7 @@ namespace BackupServerDaemon
             {
                 Logger($"    {result.FolderName,-50} --> {result.Rating,-5} ({result.Age} days)");
                 if (result.Rating == "rating error")
-                    return "rating error";
+                    return ("rating error", 0);
             }
 
             var orderedResults = groupResults.OrderBy(x => x.Age);
@@ -319,8 +319,12 @@ namespace BackupServerDaemon
                 ? orderedResults.First().Rating
                 : orderedResults.Last().Rating;
 
+            var maxAge = (group.Strategy == "TakeNewestFolder")
+                ? orderedResults.First().Age
+                : orderedResults.Last().Age;
+
             Logger($"Total rating: {totalRating}");
-            return totalRating;
+            return (totalRating, maxAge);
         }
 
         private Results CheckFolder(Folder folder, List<Rating> ratings)
@@ -581,21 +585,21 @@ namespace BackupServerDaemon
             }
         }
 
-        private string PrepareSubject(List<Results> groupResults)
+        private string PrepareSubject(List<Results> results)
         {
             var subject = _config.EmailSubject;
-            var oldestAgeOfAllGroups = groupResults.Max(x => x.Age);
+            var oldestAgeOfAllGroups = results.Max(x => x.Age);
             subject = subject.Replace("{{AGE}}", oldestAgeOfAllGroups.ToString());
             return subject;
         }
 
-        private string PrepareBody(List<Results> groupResults)
+        private string PrepareBody(List<Results> results)
         {
             var body = new StringBuilder();
             
-            foreach (var results in groupResults)
+            foreach (var result in results)
             {
-                body.AppendLine(results.FormatForEmail());
+                body.AppendLine(result.FormatForEmail());
             }
 
             return body.ToString();
