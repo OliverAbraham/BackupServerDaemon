@@ -81,6 +81,7 @@ namespace BackupServerDaemon
             public string       EmailFrom               { get; set; }
             public string       EmailTo                 { get; set; }
             public string       EmailSubject            { get; set; }
+            public List<string> EmailAddFilesToBody     { get; set; }
             public int          ServerTimeout           { get; set; }
             public int          MaxLogMessagesInUI      { get; set; }
             public int          UpdateIntervalInMinutes { get; set; }
@@ -573,6 +574,22 @@ namespace BackupServerDaemon
 
                 Logger("Preparing the body...");
                 var body = PrepareBody(groupResults);
+
+                if (_config.EmailAddFilesToBody is not null && _config.EmailAddFilesToBody.Any())
+                {
+                    foreach(var filename in _config.EmailAddFilesToBody) 
+                    {
+                        if (File.Exists(filename))
+                        {
+                            Logger("Adding log file to email...");
+                            body += "\n\n\n" + File.ReadAllText(filename);
+                        }
+                        else
+                        {
+                            Logger($"Log file '{filename}' not found. No log file will be attached to the email.");
+                        }
+                    }
+                }
 
                 Logger("Sending...");
 

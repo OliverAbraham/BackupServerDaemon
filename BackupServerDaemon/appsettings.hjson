@@ -18,6 +18,7 @@
     EmailFrom               : "<YOUR EMAIL ADDRESS>"
     EmailTo                 : "<RECEIVER EMAIL ADDRESS>"
     EmailSubject            : "[Backup] oldest backup folder is {{AGE}} days"
+    EmailAddFilesToBody     : [ "/root/backup/logs/backupserverdaemon.log" ]
     
     // Timeout for Homenet, MQTT and SMTP communication in seconds
     ServerTimeout           : 60
