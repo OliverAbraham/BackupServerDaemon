@@ -12,18 +12,20 @@ namespace BackupServerDaemon
         #region ------------- Types ---------------------------------------------------------------
         public class Results
         {
-            public bool Success { get; }
-            public string ErrorMessages { get; }
-            public string Rating { get; }
-            public int Age { get; }
-            public string FolderName { get; internal set; }
+            public bool Success { get; } = false;
+            public string ErrorMessages { get; } = "";
+            public string Rating { get; } = "";
+            public int Age { get; } = 0;
+            public string FolderName { get; internal set; } = "";
+            public bool IncludeInDaysSummary { get; } = true;
 
-            public Results(bool success, string rating, int age, string folderName)
+            public Results(bool success, string rating, int age, string folderName, bool includeInDaysSummary)
             {
                 Success = success;
                 Rating = rating;
                 Age = age;
                 FolderName = folderName;
+                IncludeInDaysSummary = includeInDaysSummary;
             }
 
             public Results(bool success, Exception ex)
@@ -43,7 +45,7 @@ namespace BackupServerDaemon
             public string FormatForEmail()
             {
                 if (Success)
-                    return $"Folder {FolderName,-40} is {Age,2} days --> {Rating}";
+                    return $"Folder {FolderName,-40} is {Age,2} days --> {Rating}{(IncludeInDaysSummary ? "" : " (not included in summary)")}";
                 else
                     return $"Folder {FolderName,-40} couldn't be read. Error messages: {ErrorMessages}";
             }
@@ -115,11 +117,12 @@ namespace BackupServerDaemon
 
         private class Group
         {
-            public string DataObjectName { get; set; }
-            public string MqttTopic { get; set; }
-            public string Strategy { get; set; }
-            public List<Folder> Folders { get; set; }
-            public List<Rating> Ratings { get; set; }
+            public string DataObjectName { get; set; } = "";
+            public string MqttTopic { get; set; } = "";
+            public string Strategy { get; set; } = "";
+            public bool   IncludeInDaysSummary { get; set; } = true;
+            public List<Folder> Folders { get; set; } = new List<Folder>();
+            public List<Rating> Ratings { get; set; } = new List<Rating>();
 
             public override string ToString()
             {
@@ -134,9 +137,9 @@ namespace BackupServerDaemon
 
         private class Folder
         {
-            public string Path { get; set; }
-            public string IndicatorFile { get; set; }
-            public string Strategy { get; set; }
+            public string Path { get; set; } = "";
+            public string IndicatorFile { get; set; } = "";
+            public string Strategy { get; set; } = "";
 
             public override string ToString()
             {
@@ -150,7 +153,7 @@ namespace BackupServerDaemon
         private class Rating
         {
             public int AgeDays { get; set; }
-            public string Result { get; set; }
+            public string Result { get; set; } = "";
 
             public override string ToString()
             {
@@ -162,8 +165,8 @@ namespace BackupServerDaemon
 
 
         #region ------------- Fields --------------------------------------------------------------
-        private Configuration _config;
-        private ProgramSettingsManager<Configuration> _configurationManager;
+        private Configuration? _config;
+        private ProgramSettingsManager<Configuration>? _configurationManager;
         
         // These file locations will be tried. The first file found will be used as configuration file
         private string[] _settingsFileOptions = new string[]
@@ -229,6 +232,8 @@ namespace BackupServerDaemon
         /// </summary>
         public void LogConfiguration()
         {
+            if (_config is null) 
+                return;
             var lines = _config.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
             lines.ForEach(line => Logger(line));
             Logger("");
@@ -284,10 +289,10 @@ namespace BackupServerDaemon
                 var groupResults = new List<Results>();
 
                 foreach(var folder in group.Folders)
-                    groupResults.Add(CheckFolder(folder, group.Ratings));
+                    groupResults.Add(CheckFolder(folder, group.Ratings, group.IncludeInDaysSummary));
 
                 (var rating, var maxAge) = RateGroupResults(group, groupResults);
-                return new Results(true, rating, maxAge, group.MqttTopic);
+                return new Results(true, rating, maxAge, group.MqttTopic, group.IncludeInDaysSummary);
             }
             catch (Exception ex)
             {
@@ -327,11 +332,11 @@ namespace BackupServerDaemon
             return (totalRating, maxAge);
         }
 
-        private Results CheckFolder(Folder folder, List<Rating> ratings)
+        private Results CheckFolder(Folder folder, List<Rating> ratings, bool includeInDaysSummary)
         {
             try
             {
-                return CheckFolder_internal(folder, ratings);
+                return CheckFolder_internal(folder, ratings, includeInDaysSummary);
             }
             catch (Exception ex)
             {
@@ -340,7 +345,7 @@ namespace BackupServerDaemon
             }
         }
 
-        private Results CheckFolder_internal(Folder folder, List<Rating> ratings)
+        private Results CheckFolder_internal(Folder folder, List<Rating> ratings, bool includeInDaysSummary)
         {
             var folderFullPath = Path.Combine(_config.BaseFolder, folder.Path);
             Logger($"    Reading folder  '{folderFullPath}' with mask '{folder.IndicatorFile}'");
@@ -382,7 +387,7 @@ namespace BackupServerDaemon
             var displayedFileTime = pickedFile.Time.AddHours(_config.TimezoneOffset);
 
             Logger($"    Picked file:    '{pickedFile.Name,-80}' last write time: {displayedFileTime.ToString("yyyy-MM-dd HH:mm:ss")}. Age: {FormatAge(age),4}. Rating: {rating} ");
-            return new Results(true, rating, age.Days, folder.Path);
+            return new Results(true, rating, age.Days, folder.Path, includeInDaysSummary);
         }
 
         private string FormatAge(TimeSpan age)
@@ -588,7 +593,7 @@ namespace BackupServerDaemon
         private string PrepareSubject(List<Results> results)
         {
             var subject = _config.EmailSubject;
-            var oldestAgeOfAllGroups = results.Max(x => x.Age);
+            var oldestAgeOfAllGroups = results.Where(x => x.IncludeInDaysSummary).Max(x => x.Age);
             subject = subject.Replace("{{AGE}}", oldestAgeOfAllGroups.ToString());
             return subject;
         }

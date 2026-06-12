@@ -38,6 +38,7 @@
     {
         DataObjectName      : "BACKUP_NAS"
         MqttTopic           : "Monitoring/Backup_NAS"
+        IncludeInDaysSummary: "true"
         Folders: [
         {
             Path            : "BackupServer1/Server1-Pull-K/Archiv"
