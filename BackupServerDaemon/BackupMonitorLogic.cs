@@ -582,7 +582,11 @@ namespace BackupServerDaemon
                         if (File.Exists(filename))
                         {
                             Logger("Adding log file to email...");
-                            body += "\n\n\n" + File.ReadAllText(filename);
+                            body += "\n\n\n" 
+                                 + "----------------------------------------------------------------------------------------\n" 
+                                 + $"{filename}\n" 
+                                 + "----------------------------------------------------------------------------------------\n" 
+                                 + File.ReadAllText(filename);
                         }
                         else
                         {
