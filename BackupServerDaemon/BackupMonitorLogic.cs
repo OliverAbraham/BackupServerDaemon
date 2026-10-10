@@ -4,6 +4,7 @@ using Abraham.Mail;
 using Abraham.MQTTClient;
 using Abraham.ProgramSettingsManager;
 using Microsoft.VisualBasic;
+using MimeKit;
 using System.Text;
 using static BackupServerDaemon.BackupMonitorLogic;
 
@@ -564,9 +565,15 @@ namespace BackupServerDaemon
 
                 Logger("Formatting the body...");
                 var body = FormatBody(groupResults, ownLogMessages);
+                var htmlBody = $"<html><body><pre style=\"font-family: monospace;\">{System.Net.WebUtility.HtmlEncode(body)}</pre></body></html>";
 
                 Logger("Sending...");
-                client.SendEmail(_config.EmailFrom, _config.EmailTo, subject, body);
+                var message = new MimeMessage();
+                message.From.Add(MailboxAddress.Parse(_config.EmailFrom));
+                message.To.Add(MailboxAddress.Parse(_config.EmailTo));
+                message.Subject = subject;
+                message.Body = new BodyBuilder { HtmlBody = htmlBody }.ToMessageBody();
+                client.SendEmail(message);
 
                 Logger("Sending was successful.");
                 client.Close();
