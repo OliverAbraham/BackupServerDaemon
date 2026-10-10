@@ -6,6 +6,7 @@ using Abraham.ProgramSettingsManager;
 using Microsoft.VisualBasic;
 using MimeKit;
 using System.Text;
+using System.Text.RegularExpressions;
 using static BackupServerDaemon.BackupMonitorLogic;
 
 namespace BackupServerDaemon
@@ -48,7 +49,7 @@ namespace BackupServerDaemon
             public string FormatForEmail()
             {
                 if (Success)
-                    return $"Folder {FolderName,-40} is {Age,2} days --> {Rating}{(IncludeInDaysSummary ? "" : " (not included in summary)")}";
+                    return $"Folder {FolderName,-40} is {Age,3} days --> {Rating}{(IncludeInDaysSummary ? "" : " (not included in summary)")}";
                 else
                     return $"Folder {FolderName,-40} couldn't be read. Error messages: {ErrorMessages}";
             }
@@ -637,7 +638,7 @@ namespace BackupServerDaemon
             if (_config.EmailAddFilesToBody is not null && _config.EmailAddFilesToBody.Any())
             {
                 foreach (var filename in _config.EmailAddFilesToBody)
-                    AddFileContentTo(ref body, filename);
+                    AddExternalFileTo(ref body, filename);
             }
         }
 
@@ -646,18 +647,32 @@ namespace BackupServerDaemon
             AddContentTo(ref body, "Analysis details", string.Join("\n", ownLogMessages));
         }
 
-        private void AddFileContentTo(ref StringBuilder body, string filename)
+        private void AddExternalFileTo(ref StringBuilder body, string filename)
         {
             if (File.Exists(filename))
             {
                 Logger("Adding additional log file to email...");
                 var logfileContents = File.ReadAllText(filename);
+                logfileContents = RemoveAnsiControlSequences(logfileContents);
                 AddContentTo(ref body, filename, logfileContents);
             }
             else
             {
                 Logger($"Additional log file '{filename}' doesn't exist. Will not be added to the email.");
             }
+        }
+
+        private static string RemoveAnsiControlSequences(string logfileContents)
+        {
+            var temp = Regex.Replace(
+                                logfileContents,
+                                @"-e \x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\)|[@-_])",
+                                string.Empty);
+
+            return Regex.Replace(
+                                temp,
+                                @"\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\)|[@-_])",
+                                string.Empty);
         }
 
         private void AddContentTo(ref StringBuilder body, string filename, string contents)
