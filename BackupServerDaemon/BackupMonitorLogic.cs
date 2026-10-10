@@ -1,9 +1,11 @@
-﻿using Abraham.ProgramSettingsManager;
-using Abraham.HomenetBase.Connectors;
+﻿using Abraham.HomenetBase.Connectors;
 using Abraham.HomenetBase.Models;
-using Abraham.MQTTClient;
 using Abraham.Mail;
+using Abraham.MQTTClient;
+using Abraham.ProgramSettingsManager;
+using Microsoft.VisualBasic;
 using System.Text;
+using static BackupServerDaemon.BackupMonitorLogic;
 
 namespace BackupServerDaemon
 {
@@ -183,6 +185,7 @@ namespace BackupServerDaemon
         #region Server connections
         private static DataObjectsConnector _homenetClient;
         private static MQTTClient _mqttClient;
+        private List<Results> _results;
         #endregion
         #endregion
 
@@ -245,7 +248,12 @@ namespace BackupServerDaemon
         /// </summary>
         public void Check()
         {
-            CheckAllGroups();
+            _results = CheckAllGroups();
+        }
+
+        public void SendEmail(List<string> log)
+        {
+            SendOutEmail(_results, log);
         }
         #endregion
 
@@ -253,12 +261,7 @@ namespace BackupServerDaemon
 
         #region ------------- Implementation ------------------------------------------------------
         #region Monitoring
-        private void CheckAllGroups()
-        {
-            CheckAllGroups_internal();
-        }
-
-        private void CheckAllGroups_internal()
+        private List<Results> CheckAllGroups()
         {
             var allGroupResults = new List<Results>();
 
@@ -280,7 +283,7 @@ namespace BackupServerDaemon
                 }
             }
 
-            SendOutEmail(allGroupResults);
+            return allGroupResults;
         }
 
         private Results CheckGroup(Group group)
@@ -543,7 +546,7 @@ namespace BackupServerDaemon
         #endregion
 
         #region Email sending
-        private void SendOutEmail(List<Results> groupResults)
+        private void SendOutEmail(List<Results> groupResults, List<string> ownLogMessages)
         {
             try
             {
@@ -552,56 +555,21 @@ namespace BackupServerDaemon
                     Logger("Email option is disabled. Not all Email parameters are set.");
                     return;
                 }
-
                 Logger("Sending an email with the results...");
 
-                if (!int.TryParse(_config.EmailSMTPPort, out int port))
-                    throw new Exception($"The port number '{_config.EmailSMTPPort}' is not valid. Please check your settings!");
+                var client = ConnectToEmailServer();
 
-                var _client = new Abraham.Mail.SmtpClient()
-                    .UseHostname(_config.EmailHostname)
-                    .UsePort(port)
-                    .UseAuthentication(_config.EmailUsername, _config.EmailPassword);
+                Logger("Formatting the subject...");
+                var subject = FormatSubject(groupResults);
 
-                if (_config.EmailUseSSL.ToLower() == "true")
-                    _client.UseSecurityProtocol(Security.Ssl);
-
-                Logger("Connecting to the email host...");
-                _client.Open();
-
-                Logger("Preparing the subject...");
-                string subject = PrepareSubject(groupResults);
-
-                Logger("Preparing the body...");
-                var body = PrepareBody(groupResults);
-
-                if (_config.EmailAddFilesToBody is not null && _config.EmailAddFilesToBody.Any())
-                {
-                    foreach(var filename in _config.EmailAddFilesToBody) 
-                    {
-                        if (File.Exists(filename))
-                        {
-                            Logger("Adding log file to email...");
-                            body += "\n\n\n" 
-                                 + "----------------------------------------------------------------------------------------\n" 
-                                 + $"{filename}\n" 
-                                 + "----------------------------------------------------------------------------------------\n" 
-                                 + File.ReadAllText(filename);
-                        }
-                        else
-                        {
-                            Logger($"Log file '{filename}' not found. No log file will be attached to the email.");
-                        }
-                    }
-                }
+                Logger("Formatting the body...");
+                var body = FormatBody(groupResults, ownLogMessages);
 
                 Logger("Sending...");
-
-                _client.SendEmail(_config.EmailFrom, _config.EmailTo, subject, body);
+                client.SendEmail(_config.EmailFrom, _config.EmailTo, subject, body);
 
                 Logger("Sending was successful.");
-
-                _client.Close();
+                client.Close();
                 Logger("Connecting closed.");
             }
             catch (Exception ex)
@@ -611,24 +579,92 @@ namespace BackupServerDaemon
             }
         }
 
-        private string PrepareSubject(List<Results> results)
+        private SmtpClient ConnectToEmailServer()
+        {
+            if (!int.TryParse(_config.EmailSMTPPort, out int port))
+                throw new Exception($"The port number '{_config.EmailSMTPPort}' is not valid. Please check your settings!");
+
+            var client = new Abraham.Mail.SmtpClient()
+                .UseHostname(_config.EmailHostname)
+                .UsePort(port)
+                .UseAuthentication(_config.EmailUsername, _config.EmailPassword);
+
+            if (_config.EmailUseSSL.ToLower() == "true")
+                client.UseSecurityProtocol(Security.Ssl);
+
+            Logger("Connecting to the email host...");
+            client.Open();
+            Logger("Connection to the email host was successful."); 
+            
+            return client; 
+        }
+
+        private string FormatSubject(List<Results> groupResults)
         {
             var subject = _config.EmailSubject;
-            var oldestAgeOfAllGroups = results.Where(x => x.IncludeInDaysSummary).Max(x => x.Age);
+            var oldestAgeOfAllGroups = groupResults.Where(x => x.IncludeInDaysSummary).Max(x => x.Age);
             subject = subject.Replace("{{AGE}}", oldestAgeOfAllGroups.ToString());
             return subject;
         }
 
-        private string PrepareBody(List<Results> results)
+        private string FormatBody(List<Results> groupResults, List<string> ownLogMessages)
         {
             var body = new StringBuilder();
-            
-            foreach (var result in results)
-            {
-                body.AppendLine(result.FormatForEmail());
-            }
+
+            AddSummary(ref body, groupResults);
+            AddExternalFiles(ref body);
+            AddOwnLogMessages(ref body, ownLogMessages);
 
             return body.ToString();
+        }
+
+        private void AddSummary(ref StringBuilder body, List<Results> groupResults)
+        {
+            body.AppendLine(Caption("Analysis Summary"));
+            foreach (var result in groupResults)
+                body.AppendLine(result.FormatForEmail());
+        }
+
+        private void AddExternalFiles(ref StringBuilder body)
+        {
+            if (_config.EmailAddFilesToBody is not null && _config.EmailAddFilesToBody.Any())
+            {
+                foreach (var filename in _config.EmailAddFilesToBody)
+                    AddFileContentTo(ref body, filename);
+            }
+        }
+
+        private void AddOwnLogMessages(ref StringBuilder body, List<string> ownLogMessages)
+        {
+            AddContentTo(ref body, "Analysis details", string.Join("\n", ownLogMessages));
+        }
+
+        private void AddFileContentTo(ref StringBuilder body, string filename)
+        {
+            if (File.Exists(filename))
+            {
+                Logger("Adding additional log file to email...");
+                var logfileContents = File.ReadAllText(filename);
+                AddContentTo(ref body, filename, logfileContents);
+            }
+            else
+            {
+                Logger($"Additional log file '{filename}' doesn't exist. Will not be added to the email.");
+            }
+        }
+
+        private void AddContentTo(ref StringBuilder body, string filename, string contents)
+        {
+            body.AppendLine(Caption(filename));
+            body.AppendLine(contents);
+        }
+
+        private static string Caption(string text)
+        {
+            return "\n\n\n"
+                + "----------------------------------------------------------------------------------------\n"
+                + $"{text}\n"
+                + "----------------------------------------------------------------------------------------\n";
         }
         #endregion
 

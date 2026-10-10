@@ -61,6 +61,7 @@ namespace BackupServerDaemon
             {
                 Log("Doing a single monitoring run, then ending, because parameter 'UpdateIntervalInMinutes' is 0");
                 _logic.Check();
+                _logic.SendEmail(_log);
                 Log("ending.");
                 return false;
             }
